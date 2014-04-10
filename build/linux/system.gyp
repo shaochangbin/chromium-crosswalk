@@ -22,7 +22,7 @@
     'linux_link_libbrlapi%': 0,
   },
   'conditions': [
-    [ 'chromeos==0', {
+    [ 'chromeos==0 and toolkit_uses_gtk==1', {
       # Hide GTK and related dependencies for Chrome OS, so they won't get
       # added back to Chrome OS. Don't try to use GTK on Chrome OS.
       'targets': [
