@@ -47,6 +47,7 @@
 #endif
 
 #include <limits>
+#include <string>
 
 namespace base {
 
@@ -313,6 +314,10 @@ class BASE_EXPORT Time {
   // Converts to Java convention for times, a number of
   // milliseconds since the epoch.
   int64 ToJavaTime() const;
+
+  // Converts to Human Readable time.
+  // MM:SS:Millisecond
+  std::string ToReadableTime() const; 
 
 #if defined(OS_POSIX)
   static Time FromTimeVal(struct timeval t);

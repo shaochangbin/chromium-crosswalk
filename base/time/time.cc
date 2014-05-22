@@ -6,6 +6,7 @@
 
 #include <limits>
 #include <ostream>
+#include <sstream>
 
 #include "base/float_util.h"
 #include "base/lazy_instance.h"
@@ -190,6 +191,28 @@ int64 Time::ToJavaTime() const {
   }
   return ((us_ - kTimeTToMicrosecondsOffset) /
           kMicrosecondsPerMillisecond);
+}
+
+std::string Time::ToReadableTime() const {
+  std::stringstream stream;
+  if (is_null()) {
+    // Preserve 0 so the invalid result doesn't depend on the platform.
+    return std::string();
+  }
+  if (is_max()) {
+    // Preserve max without offset to prevent overflow.
+    return std::string();
+  }
+  int64 time = (us_ - kTimeTToMicrosecondsOffset) /
+               kMicrosecondsPerMillisecond;
+  int milliseconds = time % 1000;
+  time = time / 1000; // Convert to seconds;
+  int seconds = time % 60;
+  time = time / 60; // Convert to minutes;
+  int minutes = time % 60;
+
+  stream << minutes << ":" << seconds << "." << milliseconds;
+  return stream.str();
 }
 
 // static
