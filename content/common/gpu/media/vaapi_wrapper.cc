@@ -4,6 +4,7 @@
 
 #include "content/common/gpu/media/vaapi_wrapper.h"
 
+#include <libdrm/drm_fourcc.h>
 #include <dlfcn.h>
 #if defined (USE_OZONE)
 #include <wayland-client.h>
@@ -55,8 +56,7 @@ static const base::FilePath::CharType kVaLib[] =
   } while (0)
 
 static bool
-va_format_to_drm_format(const VAImageFormat *va_format, uint32_t *format_ptr)
-{
+va_format_to_drm_format(const VAImageFormat* va_format, uint32_t* format_ptr) {
     uint32_t format;
 
     switch (va_format->fourcc) {
@@ -475,15 +475,15 @@ bool VaapiWrapper::CreateVAImage(VASurfaceID va_surface_id,
 
 bool VaapiWrapper::AcquireBufferHandle(VAImage* image, VABufferInfo* buffer_info) {
   base::AutoLock auto_lock(va_lock_);
-  VAStatus va_res = vaAcquireBufferHandle(va_display_, image.buf, &buffer_info);
+  VAStatus va_res = vaAcquireBufferHandle(va_display_, image->buf, buffer_info);
   VA_SUCCESS_OR_RETURN(va_res, "Failed to create va image", false);
-  buf_info->mem_type = VA_SURFACE_ATTRIB_MEM_TYPE_DRM_PRIME;
+  //buf_info->mem_type = VA_SURFACE_ATTRIB_MEM_TYPE_DRM_PRIME;
   return true;
 }
 
-bool VaapiWrapper::QueryDRMFormat(VAImage* image, uint32_t drm_format) {
+bool VaapiWrapper::QueryDRMFormat(VAImage* image, uint32_t* drm_format) {
   base::AutoLock auto_lock(va_lock_);
-  VAStatus va_res = va_format_to_drm_format(image->format, &drm_format);
+  VAStatus va_res = va_format_to_drm_format(&(image->format), drm_format);
   VA_SUCCESS_OR_RETURN(va_res, "Failed to create va image", false);
   return true;
 }

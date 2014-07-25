@@ -14,6 +14,8 @@
 #include "content/common/gpu/media/vaapi_video_decode_accelerator.h"
 #include "media/base/bind_to_current_loop.h"
 #include "media/video/picture.h"
+#include "ui/gl/gl_bindings.h"
+#include "ui/gl/gl_surface_egl.h"
 #include "ui/gl/scoped_binders.h"
 
 static void ReportToUMA(
@@ -100,6 +102,9 @@ class VaapiVideoDecodeAccelerator::TFPPicture : public base::NonThreadSafe {
 
   bool Initialize();
 
+  EGLImageKHR CreateEGLImage(EGLDisplay egl_display, VASurfaceID surface);
+  bool DestroyEGLImage(EGLDisplay egl_display, EGLImageKHR egl_image);
+
   base::Callback<bool(void)> make_context_current_; //NOLINT
 
   wl_display* wl_display_;
@@ -171,13 +176,14 @@ VaapiVideoDecodeAccelerator::TFPPicture::~TFPPicture() {
 */
 }
 
+/*
 bool VaapiVideoDecodeAccelerator::TFPPicture::Bind() {
   DCHECK(CalledOnValidThread());
 
   if (!make_context_current_.Run())
     return false;
 }
-
+*/
 /*
 bool VaapiVideoDecodeAccelerator::TFPPicture::Upload(VASurfaceID surface) {
   DCHECK(CalledOnValidThread());
@@ -224,14 +230,14 @@ bool VaapiVideoDecodeAccelerator::TFPPicture::Upload(VASurfaceID surface) {
   if (!make_context_current_.Run())
     return false;
 
-  EGLIMageKHR egl_image = 
-      CreateEGLImage(gfx::GLSurfaceEGL::GetHardwareDisplay(), surface)
+  EGLImageKHR egl_image = 
+      CreateEGLImage(gfx::GLSurfaceEGL::GetHardwareDisplay(), surface);
   if (egl_image == EGL_NO_IMAGE_KHR) {
     DVLOG(1) << "Failed to create EGL image";
     return false;
   }
   
-  glBindTexture(GL_TEXTURE_EXTERNAL_OES, texture_id);
+  glBindTexture(GL_TEXTURE_EXTERNAL_OES, texture_id_);
   glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, egl_image);
 
   DestroyEGLImage(gfx::GLSurfaceEGL::GetHardwareDisplay(), egl_image);
@@ -243,8 +249,8 @@ EGLImageKHR VaapiVideoDecodeAccelerator::TFPPicture::CreateEGLImage(
   DCHECK(CalledOnValidThread());
   VAImage va_image;
   VABufferInfo buffer_info;
-  uint32_t drm_foramt;
-  if (wa_wrapper_->CreateVAImage(surface, &va_image)) {
+  uint32_t drm_format;
+  if (va_wrapper_->CreateVAImage(surface, &va_image)) {
     DVLOG(1) << "Failed to map VAImage";
     return NULL;
   }
@@ -267,9 +273,9 @@ EGLImageKHR VaapiVideoDecodeAccelerator::TFPPicture::CreateEGLImage(
   *attrib++ = va_image.width;
   *attrib++ = EGL_HEIGHT;
   *attrib++ = va_image.height;
-  for (i = 0; i < va_image.num_planes; ++i) {
+  for (unsigned int i = 0; i < va_image.num_planes; ++i) {
     *attrib++ = EGL_DMA_BUF_PLANE0_FD_EXT + 3*i;
-    *attrib++ = buf_info.handle;
+    *attrib++ = buffer_info.handle;
     *attrib++ = EGL_DMA_BUF_PLANE0_OFFSET_EXT + 3*i;
     *attrib++ = va_image.offsets[i];
     *attrib++ = EGL_DMA_BUF_PLANE0_PITCH_EXT + 3*i;
@@ -278,7 +284,7 @@ EGLImageKHR VaapiVideoDecodeAccelerator::TFPPicture::CreateEGLImage(
   *attrib++ = EGL_NONE;
   EGLImageKHR egl_image = eglCreateImageKHR(
       egl_display, EGL_NO_CONTEXT,
-      EGL_LINUX_DMA_BUF_EXT, NULL, attrs);
+      EGL_LINUX_DMA_BUF_EXT, NULL, attribs);
 
   return egl_image;
 }
