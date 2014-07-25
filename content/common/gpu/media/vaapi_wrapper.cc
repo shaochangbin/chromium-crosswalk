@@ -4,6 +4,7 @@
 
 #include "content/common/gpu/media/vaapi_wrapper.h"
 
+#include <libdrm/drm_fourcc.h>
 #include <dlfcn.h>
 #if defined (USE_OZONE)
 #include <wayland-client.h>
@@ -53,6 +54,32 @@ static const base::FilePath::CharType kVaLib[] =
       return (ret);                                        \
     }                                                      \
   } while (0)
+
+static bool
+va_format_to_drm_format(const VAImageFormat* va_format, uint32_t* format_ptr) {
+    uint32_t format;
+
+    switch (va_format->fourcc) {
+    case VA_FOURCC('I','4','2','0'):
+        format = DRM_FORMAT_YUV420;
+        break;
+    case VA_FOURCC('Y','V','1','2'):
+        format = DRM_FORMAT_YVU420;
+        break;
+    case VA_FOURCC('N','V','1','2'):
+        format = DRM_FORMAT_NV12;
+        break;
+    default:
+        format = 0;
+        break;
+    }
+    if (!format)
+        return false;
+
+    if (format_ptr)
+        *format_ptr = format;
+    return true;
+}
 
 namespace content {
 
@@ -435,6 +462,57 @@ bool VaapiWrapper::PutSurfaceIntoImage(VASurfaceID va_surface_id,
   VA_SUCCESS_OR_RETURN(va_res, "Failed to put surface into image", false);
   return true;
 }
+
+
+bool VaapiWrapper::CreateVAImage(VASurfaceID va_surface_id,
+                                 VAImage* image) {
+  base::AutoLock auto_lock(va_lock_);
+
+  VAStatus va_res = vaDeriveImage(va_display_, va_surface_id, image); 
+  VA_SUCCESS_OR_RETURN(va_res, "Failed to create va image", false);
+  return true;
+}
+
+bool VaapiWrapper::GetBufferInfo(VASurfaceID va_surface_id, VABufferInfo* buf_info) {
+  base::AutoLock auto_lock(va_lock_);
+  /*
+  VAStatus va_res = vaAcquireBufferHandle(va_display_, image->buf, buf_info);
+  VA_SUCCESS_OR_RETURN(va_res, "Failed to get buffer info", false);
+  //buf_info->mem_type = VA_SURFACE_ATTRIB_MEM_TYPE_DRM_PRIME;
+  */
+  unsigned int fourcc, luma_stride, chroma_u_stride, chroma_v_stride;
+  unsigned int luma_offset, chroma_u_offset, chroma_v_offset, buffer_name;
+  void *buffer;
+  VABufferInfo buf_info;
+  VAStatus va_res;
+  va_res = vaLockSurface(va_display_, va_surface_id, &fourcc,
+      &luma_stride, &chroma_u_stride, &chroma_v_stride,
+      &luma_offset, &chroma_u_offset, &chroma_v_offset,
+      &buffer_name, &buffer);
+  VA_SUCCESS_OR_RETURN(va_res, "Failed to lock vasurface", false);
+  
+  buf_info.mem_type = VA_SURFACE_ATTRIB_MEM_TYPE_KERNEL_DRM_BO;
+  va_res = vaLockBuffer(va_display_, buffer_name, &buf_info);
+  VA_SUCCESS_OR_RETURN(va_res, "Failed to lock vabuffer", false);
+
+  //printf("surface buffer info: buf_info.handle: 0x%x, buf_info.type: %d, buf_info.mem_type: 0x%x, buf_info.mem_size: %d\n",
+           //buf_info.handle, buf_info.type, buf_info.mem_type, buf_info.mem_size);
+
+  va_res = vaUnlockBuffer(va_display_, buffer_name, &buf_info);
+  VA_SUCCESS_OR_RETURN(va_res, "Failed to unlock vabuffer", false);
+  vaUnlockSurface(va_display_, va_surface_id);
+  VA_SUCCESS_OR_RETURN(va_res, "Failed to unlock vasurface", false);
+
+  return true;
+}
+
+bool VaapiWrapper::QueryDRMFormat(VAImage* image, uint32_t* drm_format) {
+  base::AutoLock auto_lock(va_lock_);
+  VAStatus va_res = va_format_to_drm_format(&(image->format), drm_format);
+  VA_SUCCESS_OR_RETURN(va_res, "Failed to create va image", false);
+  return true;
+}
+
 #else
 bool VaapiWrapper::PutSurfaceIntoPixmap(VASurfaceID va_surface_id,
                                         Pixmap x_pixmap,

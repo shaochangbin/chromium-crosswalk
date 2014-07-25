@@ -87,6 +87,11 @@ class CONTENT_EXPORT VaapiWrapper {
   // Put data from |va_surface_id| into |va_image|, converting/scaling it.
   bool PutSurfaceIntoImage(VASurfaceID va_surface_id,
                            VAImage* va_image);
+
+  bool CreateVAImage(VASurfaceID va_surface_id, VAImage* va_image);
+  bool GetBufferInfo(VASurfaceID va_surface_id, VABufferInfo* buf_info);
+  bool QueryDRMFormat(VAImage* va_image, uint32_t* drm_format);
+
 #else
   // Put data from |va_surface_id| into |x_pixmap| of size |size|,
   // converting/scaling to it.
