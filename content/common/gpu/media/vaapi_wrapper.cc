@@ -54,6 +54,33 @@ static const base::FilePath::CharType kVaLib[] =
     }                                                      \
   } while (0)
 
+static bool
+va_format_to_drm_format(const VAImageFormat *va_format, uint32_t *format_ptr)
+{
+    uint32_t format;
+
+    switch (va_format->fourcc) {
+    case VA_FOURCC('I','4','2','0'):
+        format = DRM_FORMAT_YUV420;
+        break;
+    case VA_FOURCC('Y','V','1','2'):
+        format = DRM_FORMAT_YVU420;
+        break;
+    case VA_FOURCC('N','V','1','2'):
+        format = DRM_FORMAT_NV12;
+        break;
+    default:
+        format = 0;
+        break;
+    }
+    if (!format)
+        return false;
+
+    if (format_ptr)
+        *format_ptr = format;
+    return true;
+}
+
 namespace content {
 
 // Maps Profile enum values to VaProfile values.
@@ -435,6 +462,32 @@ bool VaapiWrapper::PutSurfaceIntoImage(VASurfaceID va_surface_id,
   VA_SUCCESS_OR_RETURN(va_res, "Failed to put surface into image", false);
   return true;
 }
+
+
+bool VaapiWrapper::CreateVAImage(VASurfaceID va_surface_id,
+                                 VAImage* image) {
+  base::AutoLock auto_lock(va_lock_);
+
+  VAStatus va_res = vaDeriveImage(va_display_, va_surface_id, image); 
+  VA_SUCCESS_OR_RETURN(va_res, "Failed to create va image", false);
+  return true;
+}
+
+bool VaapiWrapper::AcquireBufferHandle(VAImage* image, VABufferInfo* buffer_info) {
+  base::AutoLock auto_lock(va_lock_);
+  VAStatus va_res = vaAcquireBufferHandle(va_display_, image.buf, &buffer_info);
+  VA_SUCCESS_OR_RETURN(va_res, "Failed to create va image", false);
+  buf_info->mem_type = VA_SURFACE_ATTRIB_MEM_TYPE_DRM_PRIME;
+  return true;
+}
+
+bool VaapiWrapper::QueryDRMFormat(VAImage* image, uint32_t drm_format) {
+  base::AutoLock auto_lock(va_lock_);
+  VAStatus va_res = va_format_to_drm_format(image->format, &drm_format);
+  VA_SUCCESS_OR_RETURN(va_res, "Failed to create va image", false);
+  return true;
+}
+
 #else
 bool VaapiWrapper::PutSurfaceIntoPixmap(VASurfaceID va_surface_id,
                                         Pixmap x_pixmap,
