@@ -115,7 +115,7 @@ class VaapiVideoDecodeAccelerator::TFPPicture : public base::NonThreadSafe {
   uint32 texture_id_;
 
   gfx::Size size_;
-  //VAImage va_image_;
+  VAImage va_image_;
   EGLImageKHR egl_image_;
 
   DISALLOW_COPY_AND_ASSIGN(TFPPicture);
@@ -159,12 +159,12 @@ bool VaapiVideoDecodeAccelerator::TFPPicture::Initialize() {
   DCHECK(CalledOnValidThread());
   if (!make_context_current_.Run())
     return false;
-  /*
+  
   if (!va_wrapper_->CreateRGBImage(size_, &va_image_)) {
     DVLOG(1) << "Failed to create VAImage";
     return false;
   }
-  */
+  
   return true;
 }
 
@@ -172,11 +172,11 @@ VaapiVideoDecodeAccelerator::TFPPicture::~TFPPicture() {
   DCHECK(CalledOnValidThread());
   if(egl_image_ != EGL_NO_IMAGE_KHR)
     DestroyEGLImage(gfx::GLSurfaceEGL::GetHardwareDisplay(), egl_image_);
-/*
+
   if (va_wrapper_) {
     va_wrapper_->DestroyImage(&va_image_);
   }
-*/
+
 }
 
 /*
@@ -249,20 +249,21 @@ bool VaapiVideoDecodeAccelerator::TFPPicture::Upload(VASurfaceID surface) {
 EGLImageKHR VaapiVideoDecodeAccelerator::TFPPicture::CreateEGLImage(
     EGLDisplay egl_display, VASurfaceID surface) {
   DCHECK(CalledOnValidThread());
-  VAImage va_image;
+  //VAImage va_image;
   VABufferInfo buffer_info;
   uint32_t drm_format;
+  /*
   if (va_wrapper_->CreateVAImage(surface, &va_image)) {
     DVLOG(1) << "Failed to map VAImage";
     return NULL;
   }
-
+  */
   if (va_wrapper_->GetBufferInfo(surface, &buffer_info)) {
     DVLOG(1) << "Failed to map VAImage";
     return NULL;
   }
-
-  if (va_wrapper_->QueryDRMFormat(&va_image, &drm_format)) {
+  
+  if (va_wrapper_->QueryDRMFormat(&va_image_, &drm_format)) {
     DVLOG(1) << "Failed to map VAImage";
     return NULL;
   }
@@ -272,16 +273,16 @@ EGLImageKHR VaapiVideoDecodeAccelerator::TFPPicture::CreateEGLImage(
   *attrib++ = EGL_LINUX_DRM_FOURCC_EXT;
   *attrib++ = drm_format;
   *attrib++ = EGL_WIDTH;
-  *attrib++ = va_image.width;
+  *attrib++ = va_image_.width;
   *attrib++ = EGL_HEIGHT;
-  *attrib++ = va_image.height;
-  for (unsigned int i = 0; i < va_image.num_planes; ++i) {
+  *attrib++ = va_image_.height;
+  for (unsigned int i = 0; i < va_image_.num_planes; ++i) {
     *attrib++ = EGL_DMA_BUF_PLANE0_FD_EXT + 3*i;
     *attrib++ = buffer_info.handle;
     *attrib++ = EGL_DMA_BUF_PLANE0_OFFSET_EXT + 3*i;
-    *attrib++ = va_image.offsets[i];
+    *attrib++ = va_image_.offsets[i];
     *attrib++ = EGL_DMA_BUF_PLANE0_PITCH_EXT + 3*i;
-    *attrib++ = va_image.pitches[i];
+    *attrib++ = va_image_.pitches[i];
   }
   *attrib++ = EGL_NONE;
   EGLImageKHR egl_image = eglCreateImageKHR(
