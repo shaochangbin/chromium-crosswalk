@@ -116,6 +116,7 @@ class VaapiVideoDecodeAccelerator::TFPPicture : public base::NonThreadSafe {
 
   gfx::Size size_;
   //VAImage va_image_;
+  EGLImageKHR egl_image_;
 
   DISALLOW_COPY_AND_ASSIGN(TFPPicture);
 };
@@ -169,6 +170,8 @@ bool VaapiVideoDecodeAccelerator::TFPPicture::Initialize() {
 
 VaapiVideoDecodeAccelerator::TFPPicture::~TFPPicture() {
   DCHECK(CalledOnValidThread());
+  if(egl_image_ != EGL_NO_IMAGE_KHR)
+    DestroyEGLImage(gfx::GLSurfaceEGL::GetHardwareDisplay(), egl_image_);
 /*
   if (va_wrapper_) {
     va_wrapper_->DestroyImage(&va_image_);
@@ -230,17 +233,16 @@ bool VaapiVideoDecodeAccelerator::TFPPicture::Upload(VASurfaceID surface) {
   if (!make_context_current_.Run())
     return false;
 
-  EGLImageKHR egl_image = 
+  egl_image_ = 
       CreateEGLImage(gfx::GLSurfaceEGL::GetHardwareDisplay(), surface);
-  if (egl_image == EGL_NO_IMAGE_KHR) {
+  if (egl_image_ == EGL_NO_IMAGE_KHR) {
     DVLOG(1) << "Failed to create EGL image";
     return false;
   }
   
   glBindTexture(GL_TEXTURE_EXTERNAL_OES, texture_id_);
-  glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, egl_image);
+  glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, egl_image_);
 
-  DestroyEGLImage(gfx::GLSurfaceEGL::GetHardwareDisplay(), egl_image);
   return true;
 }
 
