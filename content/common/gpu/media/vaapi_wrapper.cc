@@ -19,6 +19,7 @@
 #if defined (USE_OZONE)
 #include "third_party/libva/va/wayland/va_wayland.h"
 #include "third_party/libva/va/va_drmcommon.h"
+#include <stdio.h>
 
 using content_common_gpu_media::kModuleVa_wayland;
 #else
@@ -496,8 +497,8 @@ bool VaapiWrapper::GetBufferInfo(VASurfaceID va_surface_id, VABufferInfo* buf_in
   va_res = vaLockBuffer(va_display_, buffer_name, buf_info);
   VA_SUCCESS_OR_RETURN(va_res, "Failed to lock vabuffer", false);
 
-  //printf("surface buffer info: buf_info.handle: 0x%x, buf_info.type: %d, buf_info.mem_type: 0x%x, buf_info.mem_size: %d\n",
-           //buf_info.handle, buf_info.type, buf_info.mem_type, buf_info.mem_size);
+  printf("surface buffer info: buf_info.handle: 0x%x, buf_info.type: %d, buf_info.mem_type: 0x%x, buf_info.mem_size: %d\n",
+           buf_info->handle, buf_info->type, buf_info->mem_type, buf_info->mem_size);
 
   va_res = vaUnlockBuffer(va_display_, buffer_name, buf_info);
   VA_SUCCESS_OR_RETURN(va_res, "Failed to unlock vabuffer", false);

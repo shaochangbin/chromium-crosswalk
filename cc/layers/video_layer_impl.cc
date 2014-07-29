@@ -297,6 +297,16 @@ void VideoLayerImpl::AppendQuads(QuadSink* quad_sink,
 
 void VideoLayerImpl::DidDraw(ResourceProvider* resource_provider) {
   LayerImpl::DidDraw(resource_provider);
+  static int count = 0;
+  static base::Time prev_time = base::Time::NowFromSystemTime();
+  if (count % 30 == 0) {
+    base::Time cur_time = base::Time::NowFromSystemTime();
+    base::TimeDelta time = cur_time - prev_time;
+    prev_time = cur_time;
+    double fps = 30.0 / time.InMillisecondsF() * 1000;
+    LOG(INFO) << "--- VideoLayerImpl::SetNeedsRedraw " << fps;
+  }
+  ++count;
 
   DCHECK(frame_.get());
 

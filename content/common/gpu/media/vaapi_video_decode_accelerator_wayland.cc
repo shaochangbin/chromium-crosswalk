@@ -103,7 +103,7 @@ class VaapiVideoDecodeAccelerator::TFPPicture : public base::NonThreadSafe {
   bool Initialize();
 
   EGLImageKHR CreateEGLImage(EGLDisplay egl_display, VASurfaceID surface);
-  bool DestroyEGLImage(EGLDisplay egl_display, EGLImageKHR egl_image);
+  bool DestroyEGLImage(EGLDisplay egl_display);
 
   base::Callback<bool(void)> make_context_current_; //NOLINT
 
@@ -156,6 +156,7 @@ VaapiVideoDecodeAccelerator::TFPPicture::Create(
 }
 
 bool VaapiVideoDecodeAccelerator::TFPPicture::Initialize() {
+  LOG(INFO) << "--- " <<__FUNCTION__;
   DCHECK(CalledOnValidThread());
   if (!make_context_current_.Run())
     return false;
@@ -170,13 +171,14 @@ bool VaapiVideoDecodeAccelerator::TFPPicture::Initialize() {
 
 VaapiVideoDecodeAccelerator::TFPPicture::~TFPPicture() {
   DCHECK(CalledOnValidThread());
+  /*
   if(egl_image_ != EGL_NO_IMAGE_KHR)
-    DestroyEGLImage(gfx::GLSurfaceEGL::GetHardwareDisplay(), egl_image_);
+    DestroyEGLImage(gfx::GLSurfaceEGL::GetHardwareDisplay());
 
   if (va_wrapper_) {
     va_wrapper_->DestroyImage(&va_image_);
   }
-
+  */
 }
 
 /*
@@ -229,6 +231,7 @@ bool VaapiVideoDecodeAccelerator::TFPPicture::Upload(VASurfaceID surface) {
 
 bool VaapiVideoDecodeAccelerator::TFPPicture::Upload(VASurfaceID surface) {
   DCHECK(CalledOnValidThread());
+  LOG(INFO) << "--- " <<__FUNCTION__;
 
   if (!make_context_current_.Run())
     return false;
@@ -293,8 +296,9 @@ EGLImageKHR VaapiVideoDecodeAccelerator::TFPPicture::CreateEGLImage(
 }
 
 bool VaapiVideoDecodeAccelerator::TFPPicture::DestroyEGLImage(
-    EGLDisplay egl_display, EGLImageKHR egl_image) {
-  return eglDestroyImageKHR(egl_display, egl_image);
+    EGLDisplay egl_display) {
+  LOG(INFO) << "--- " <<__FUNCTION__;
+  return eglDestroyImageKHR(egl_display, egl_image_);
 }
 
 VaapiVideoDecodeAccelerator::TFPPicture*
@@ -372,6 +376,7 @@ static const struct wl_registry_listener registry_listener = {
 
 bool VaapiVideoDecodeAccelerator::Initialize(media::VideoCodecProfile profile,
                                              Client* client) {
+  LOG(INFO) << "--- " <<__FUNCTION__;
   DCHECK_EQ(message_loop_, base::MessageLoop::current());
 
   client_ptr_factory_.reset(new base::WeakPtrFactory<Client>(client));
@@ -440,6 +445,7 @@ void VaapiVideoDecodeAccelerator::OutputPicture(
     const scoped_refptr<VASurface>& va_surface,
     int32 input_id,
     TFPPicture* tfp_picture) {
+  LOG(INFO) << "--- " <<__FUNCTION__;
   DCHECK_EQ(message_loop_, base::MessageLoop::current());
 
   int32 output_id  = tfp_picture->picture_buffer_id();
@@ -466,6 +472,7 @@ void VaapiVideoDecodeAccelerator::OutputPicture(
 
 void VaapiVideoDecodeAccelerator::TryOutputSurface() {
   DCHECK_EQ(message_loop_, base::MessageLoop::current());
+  LOG(INFO) << "--- " <<__FUNCTION__;
 
   // Handle Destroy() arriving while pictures are queued for output.
   if (!client_)
@@ -489,6 +496,7 @@ void VaapiVideoDecodeAccelerator::TryOutputSurface() {
 
 void VaapiVideoDecodeAccelerator::MapAndQueueNewInputBuffer(
     const media::BitstreamBuffer& bitstream_buffer) {
+  LOG(INFO) << "--- " <<__FUNCTION__;
   DCHECK_EQ(message_loop_, base::MessageLoop::current());
   TRACE_EVENT1("Video Decoder", "MapAndQueueNewInputBuffer", "input_id",
       bitstream_buffer.id());
