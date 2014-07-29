@@ -424,7 +424,7 @@ bool VaapiWrapper::CreateRGBImage(gfx::Size size, VAImage* image) {
   format.byte_order = VA_LSB_FIRST;
   format.bits_per_pixel = 32;
   format.depth = 24;
-  format.red_mask = 0xff;
+  format.red_mask = 0xff; // ????
   format.green_mask = 0xff00;
   format.blue_mask = 0xff0000;
   format.alpha_mask = 0;
@@ -458,9 +458,11 @@ void VaapiWrapper::UnmapImage(VAImage* image) {
 bool VaapiWrapper::PutSurfaceIntoImage(VASurfaceID va_surface_id,
                                        VAImage* image) {
   base::AutoLock auto_lock(va_lock_);
+  LOG(INFO) << __FUNCTION__ << " begin sync surface";
   VAStatus va_res = vaSyncSurface(va_display_, va_surface_id);
   VA_SUCCESS_OR_RETURN(va_res, "Failed syncing surface", false);
 
+  LOG(INFO) << __FUNCTION__ << " begin get vaimage.";
   va_res = vaGetImage(va_display_,
                       va_surface_id,
                       0,
@@ -470,6 +472,20 @@ bool VaapiWrapper::PutSurfaceIntoImage(VASurfaceID va_surface_id,
                       image->image_id);
   VA_SUCCESS_OR_RETURN(va_res, "Failed to put surface into image", false);
   return true;
+  
+  /*
+  base::AutoLock auto_lock(va_lock_);
+  VAStatus va_res = vaSyncSurface(va_display_, va_surface_id);
+  VA_SUCCESS_OR_RETURN(va_res, "Failed syncing surface", false);
+
+  //va_res = vaDeriveImage(va_display_, va_surface_id, image);
+  VAImage imagea;
+  vaDeriveImage(va_display_, va_surface_id, &imagea);
+  LOG(INFO) << " image width: " << imagea.width << ", height:" << imagea.height;
+
+  VA_SUCCESS_OR_RETURN(va_res, "Failed to put surface into image by derive", false);
+  return true;
+  */
 }
 
 

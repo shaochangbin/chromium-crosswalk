@@ -162,12 +162,12 @@ bool VaapiVideoDecodeAccelerator::TFPPicture::Initialize() {
   DCHECK(CalledOnValidThread());
   if (!make_context_current_.Run())
     return false;
-  
+ /* 
   if (!va_wrapper_->CreateRGBImage(size_, &va_image_)) {
     LOG(INFO) << "Failed to create VAImage";
     return false;
   }
-  
+ */
   return true;
 }
 
@@ -240,6 +240,12 @@ bool VaapiVideoDecodeAccelerator::TFPPicture::Upload(VASurfaceID surface) {
     return false;
 
   surface_id_ = surface;
+
+  if (!va_wrapper_->PutSurfaceIntoImage(surface, &va_image_)) {
+    LOG(INFO) << "Failed to put va surface to vaimage";
+    return false;
+  }
+
   egl_image_ = 
       CreateEGLImage(gfx::GLSurfaceEGL::GetHardwareDisplay(), surface);
   if (egl_image_ == EGL_NO_IMAGE_KHR) {
