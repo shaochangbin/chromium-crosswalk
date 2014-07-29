@@ -60,23 +60,29 @@ static const base::FilePath::CharType kVaLib[] =
 static bool
 va_format_to_drm_format(const VAImageFormat* va_format, uint32_t* format_ptr) {
     uint32_t format;
+    LOG(INFO) << " --- va image format:" << va_format->fourcc;
 
     switch (va_format->fourcc) {
     case VA_FOURCC('I','4','2','0'):
+        LOG(INFO) << "--- I420";
         format = DRM_FORMAT_YUV420;
         break;
     case VA_FOURCC('Y','V','1','2'):
+        LOG(INFO) << "--- YV420";
         format = DRM_FORMAT_YVU420;
         break;
     case VA_FOURCC('N','V','1','2'):
+        LOG(INFO) << "--- NV12";
         format = DRM_FORMAT_NV12;
         break;
     default:
         format = 0;
         break;
     }
-    if (!format)
+    if (!format) {
+        LOG(INFO) << "--- format = 0";
         return false;
+    }
 
     if (format_ptr)
         *format_ptr = format;
@@ -413,7 +419,8 @@ bool VaapiWrapper::CreateRGBImage(gfx::Size size, VAImage* image) {
   base::AutoLock auto_lock(va_lock_);
   VAStatus va_res;
   VAImageFormat format;
-  format.fourcc = VA_FOURCC_RGBX;
+  //format.fourcc = VA_FOURCC_RGBX;
+  format.fourcc = VA_FOURCC_YV12;
   format.byte_order = VA_LSB_FIRST;
   format.bits_per_pixel = 32;
   format.depth = 24;
@@ -475,7 +482,7 @@ bool VaapiWrapper::CreateVAImage(VASurfaceID va_surface_id,
   return true;
 }
 
-bool VaapiWrapper::GetBufferInfo(VASurfaceID va_surface_id, VABufferInfo* buf_info) {
+bool VaapiWrapper::LockBuffer(VASurfaceID va_surface_id, unsigned int* buffer_name, VABufferInfo* buf_info) {
   DCHECK(buf_info);
   base::AutoLock auto_lock(va_lock_);
   /*
@@ -484,23 +491,43 @@ bool VaapiWrapper::GetBufferInfo(VASurfaceID va_surface_id, VABufferInfo* buf_in
   //buf_info->mem_type = VA_SURFACE_ATTRIB_MEM_TYPE_DRM_PRIME;
   */
   unsigned int fourcc, luma_stride, chroma_u_stride, chroma_v_stride;
-  unsigned int luma_offset, chroma_u_offset, chroma_v_offset, buffer_name;
+  unsigned int luma_offset, chroma_u_offset, chroma_v_offset; //buffer_name;
   void *buffer;
   VAStatus va_res;
+  LOG(INFO) << __FUNCTION__ << ", begin to lock surface";
   va_res = vaLockSurface(va_display_, va_surface_id, &fourcc,
       &luma_stride, &chroma_u_stride, &chroma_v_stride,
       &luma_offset, &chroma_u_offset, &chroma_v_offset,
-      &buffer_name, &buffer);
+      buffer_name, &buffer);
   VA_SUCCESS_OR_RETURN(va_res, "Failed to lock vasurface", false);
+  LOG(INFO) << __FUNCTION__ << ", begin to lock Buffer";
+  LOG(INFO) << __FUNCTION__ << " buffer name:" << *buffer_name;
+  printf("surface info: luma_stride: %d, chroma_u_stride: %d, chromea_v_stride: %d \n",
+           luma_stride, chroma_u_stride, chroma_v_stride);
   
   buf_info->mem_type = VA_SURFACE_ATTRIB_MEM_TYPE_KERNEL_DRM_BO;
-  va_res = vaLockBuffer(va_display_, buffer_name, buf_info);
+  va_res = vaLockBuffer(va_display_, *buffer_name, buf_info);
   VA_SUCCESS_OR_RETURN(va_res, "Failed to lock vabuffer", false);
 
   printf("surface buffer info: buf_info.handle: 0x%x, buf_info.type: %d, buf_info.mem_type: 0x%x, buf_info.mem_size: %d\n",
            buf_info->handle, buf_info->type, buf_info->mem_type, buf_info->mem_size);
-
+/*
+  LOG(INFO) << __FUNCTION__ << ", begin to unlock Buffer";
   va_res = vaUnlockBuffer(va_display_, buffer_name, buf_info);
+  VA_SUCCESS_OR_RETURN(va_res, "Failed to unlock vabuffer", false);
+  vaUnlockSurface(va_display_, va_surface_id);
+  VA_SUCCESS_OR_RETURN(va_res, "Failed to unlock vasurface", false);
+*/
+  return true;
+}
+
+bool VaapiWrapper::UnlockBuffer(VASurfaceID va_surface_id, unsigned int* buffer_name, VABufferInfo* buf_info) {
+  DCHECK(buf_info);
+  base::AutoLock auto_lock(va_lock_);
+  VAStatus va_res;
+
+  LOG(INFO) << __FUNCTION__ << ", begin to unlock Buffer";
+  va_res = vaUnlockBuffer(va_display_, *buffer_name, buf_info);
   VA_SUCCESS_OR_RETURN(va_res, "Failed to unlock vabuffer", false);
   vaUnlockSurface(va_display_, va_surface_id);
   VA_SUCCESS_OR_RETURN(va_res, "Failed to unlock vasurface", false);
@@ -510,8 +537,9 @@ bool VaapiWrapper::GetBufferInfo(VASurfaceID va_surface_id, VABufferInfo* buf_in
 
 bool VaapiWrapper::QueryDRMFormat(VAImage* image, uint32_t* drm_format) {
   base::AutoLock auto_lock(va_lock_);
-  VAStatus va_res = va_format_to_drm_format(&(image->format), drm_format);
-  VA_SUCCESS_OR_RETURN(va_res, "Failed to create va image", false);
+  va_format_to_drm_format(&(image->format), drm_format);
+  //VAStatus va_res = va_format_to_drm_format(&(image->format), drm_format);
+  //VA_SUCCESS_OR_RETURN(va_res, "Failed to create va image", false);
   return true;
 }
 

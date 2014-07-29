@@ -89,7 +89,9 @@ class CONTENT_EXPORT VaapiWrapper {
                            VAImage* va_image);
 
   bool CreateVAImage(VASurfaceID va_surface_id, VAImage* va_image);
-  bool GetBufferInfo(VASurfaceID va_surface_id, VABufferInfo* buf_info);
+  //bool GetBufferInfo(VASurfaceID va_surface_id, VABufferInfo* buf_info);
+  bool LockBuffer(VASurfaceID va_surface_id, unsigned int* buffer_name, VABufferInfo* buf_info);
+  bool UnlockBuffer(VASurfaceID va_surface_id, unsigned int* buffer_name, VABufferInfo* buf_info);
   bool QueryDRMFormat(VAImage* va_image, uint32_t* drm_format);
 
 #else
