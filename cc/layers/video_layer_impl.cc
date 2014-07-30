@@ -304,7 +304,7 @@ void VideoLayerImpl::DidDraw(ResourceProvider* resource_provider) {
     base::TimeDelta time = cur_time - prev_time;
     prev_time = cur_time;
     double fps = 30.0 / time.InMillisecondsF() * 1000;
-    LOG(INFO) << "--- VideoLayerImpl::SetNeedsRedraw " << fps;
+    LOG(INFO) << "--- VideoLayerImpl::DidDraw " << fps;
   }
   ++count;
 

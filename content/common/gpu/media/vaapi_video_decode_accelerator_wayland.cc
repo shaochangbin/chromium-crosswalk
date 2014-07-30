@@ -147,6 +147,7 @@ VaapiVideoDecodeAccelerator::TFPPicture::Create(
     int32 picture_buffer_id,
     uint32 texture_id,
     gfx::Size size) {
+  LOG(INFO) << "******* TFPPicture::Create";
   linked_ptr<TFPPicture> tfp_picture(
       new TFPPicture(make_context_current, wl_display, va_wrapper,
                      picture_buffer_id, texture_id, size));
@@ -173,7 +174,8 @@ bool VaapiVideoDecodeAccelerator::TFPPicture::Initialize() {
 
 VaapiVideoDecodeAccelerator::TFPPicture::~TFPPicture() {
   DCHECK(CalledOnValidThread());
-  
+  LOG(INFO) << "******* TFPPicture::dtr";
+
   if(egl_image_ != EGL_NO_IMAGE_KHR)
     DestroyEGLImage(gfx::GLSurfaceEGL::GetHardwareDisplay());
 
@@ -192,7 +194,7 @@ bool VaapiVideoDecodeAccelerator::TFPPicture::Bind() {
     return false;
 }
 */
-/*
+
 bool VaapiVideoDecodeAccelerator::TFPPicture::Upload(VASurfaceID surface) {
   DCHECK(CalledOnValidThread());
 
@@ -225,13 +227,20 @@ bool VaapiVideoDecodeAccelerator::TFPPicture::Upload(VASurfaceID surface) {
   }
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, size_.width(), size_.height(),
                0, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
+  GLint w,h,format,type;
+  glGetTexLevelParameteriv(GL_TEXTURE_2D,0, GL_TEXTURE_WIDTH,&w);
+  glGetTexLevelParameteriv(GL_TEXTURE_2D,0, GL_TEXTURE_HEIGHT,&h);
+  glGetTexLevelParameteriv(GL_TEXTURE_2D,0, GL_TEXTURE_INTERNAL_FORMAT,&format);
+  glGetTexLevelParameteriv(GL_TEXTURE_2D,0, GL_TEXTURE_ALPHA_TYPE,&type);
+
+  LOG(INFO) << "w: " << w << ", h:" << h << ", format:" << format << ", type:" << type;
 
   va_wrapper_->UnmapImage(&va_image_);
 
   return true;
 }
-*/
 
+/*
 bool VaapiVideoDecodeAccelerator::TFPPicture::Upload(VASurfaceID surface) {
   DCHECK(CalledOnValidThread());
   LOG(INFO) << "--- " <<__FUNCTION__;
@@ -253,49 +262,65 @@ bool VaapiVideoDecodeAccelerator::TFPPicture::Upload(VASurfaceID surface) {
     return false;
   }
   
-  glBindTexture(GL_TEXTURE_EXTERNAL_OES, texture_id_);
+  gfx::ScopedTextureBinder texture_binder(GL_TEXTURE_2D, texture_id_);
   glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, egl_image_);
+  GLint w,h,format,type;
+  glGetTexLevelParameteriv(GL_TEXTURE_2D,0, GL_TEXTURE_WIDTH,&w);
+  glGetTexLevelParameteriv(GL_TEXTURE_2D,0, GL_TEXTURE_HEIGHT,&h);
+  glGetTexLevelParameteriv(GL_TEXTURE_2D,0, GL_TEXTURE_INTERNAL_FORMAT,&format);
+  glGetTexLevelParameteriv(GL_TEXTURE_2D,0, GL_TEXTURE_ALPHA_TYPE,&type);
 
+  LOG(INFO) << "w: " << w << ", h:" << h << ", format:" << format << ", type:" << type;
+
+  if(egl_image_ != EGL_NO_IMAGE_KHR)
+    DestroyEGLImage(gfx::GLSurfaceEGL::GetHardwareDisplay());
+
+  if (va_wrapper_) {
+    va_wrapper_->UnlockBuffer(surface, &buffer_name_, &buffer_info_);
+  }
   return true;
 }
+*/
 
 EGLImageKHR VaapiVideoDecodeAccelerator::TFPPicture::CreateEGLImage(
     EGLDisplay egl_display, VASurfaceID surface) {
   DCHECK(CalledOnValidThread());
-  uint32_t drm_format;
+  //uint32_t drm_format;
 
   if (!va_wrapper_->LockBuffer(surface, &buffer_name_, &buffer_info_)) {
-    LOG(INFO) << "Failed to Get Buffer Info";
+    LOG(INFO) << "Failed to lock Buffer";
     return NULL;
   }
-  
+ /*
   if (!va_wrapper_->QueryDRMFormat(&va_image_, &drm_format)) {
     LOG(INFO) << "Failed to Query DRM format";
     return NULL;
   }
-
+ */
   LOG(INFO) << "width:" << va_image_.width << ", height:" << va_image_.height
       << " handle:" << buffer_info_.handle << ", offset:" << va_image_.offsets[0]
       << " pitches:" << va_image_.pitches[0];
-  LOG(INFO) << "drm format: " << drm_format; 
+  //LOG(INFO) << "drm format: " << drm_format; 
   LOG(INFO) << "va image planes:" << va_image_.num_planes;
 
   EGLint attribs[] = {
-  EGL_WIDTH,                     0, EGL_HEIGHT,                    0,
-  EGL_LINUX_DRM_FOURCC_EXT,      0, EGL_DMA_BUF_PLANE0_FD_EXT,     0,
-  EGL_DMA_BUF_PLANE0_OFFSET_EXT, 0, EGL_DMA_BUF_PLANE0_PITCH_EXT,  0,
-  EGL_NONE, };
-
+      EGL_WIDTH, 0,
+      EGL_HEIGHT, 0,
+      EGL_DRM_BUFFER_STRIDE_MESA, 0,
+      EGL_DRM_BUFFER_FORMAT_MESA,
+      EGL_DRM_BUFFER_FORMAT_ARGB32_MESA,
+      EGL_DRM_BUFFER_USE_MESA,
+      EGL_DRM_BUFFER_USE_SHARE_MESA,
+      EGL_NONE };
   attribs[1] = va_image_.width;
   attribs[3] = va_image_.height;
-  attribs[5] = drm_format;
-  attribs[7] = buffer_info_.handle;
-  attribs[9] = va_image_.offsets[0];
-  attribs[11] = va_image_.pitches[0];
-                                  
-  EGLImageKHR egl_image = eglCreateImageKHR(
-      egl_display, EGL_NO_CONTEXT,
-      EGL_LINUX_DRM_FOURCC_EXT, (EGLClientBuffer)NULL, attribs);
+  attribs[5] = va_image_.pitches[0] / 4;
+
+  EGLImageKHR egl_image =  eglCreateImageKHR(egl_display,
+      EGL_NO_CONTEXT,
+      EGL_DRM_BUFFER_MESA,
+      (EGLClientBuffer) buffer_info_.handle,
+      attribs);
 
   return egl_image;
 }

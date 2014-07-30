@@ -519,8 +519,7 @@ bool VaapiWrapper::LockBuffer(VASurfaceID va_surface_id, unsigned int* buffer_na
   printf("surface info: luma_stride: %d, chroma_u_stride: %d, chromea_v_stride: %d \n",
            luma_stride, chroma_u_stride, chroma_v_stride);
   
-  //buf_info->mem_type = VA_SURFACE_ATTRIB_MEM_TYPE_KERNEL_DRM;
-  buf_info->mem_type = VA_SURFACE_ATTRIB_MEM_TYPE_DRM_PRIME;
+  buf_info->mem_type = VA_SURFACE_ATTRIB_MEM_TYPE_KERNEL_DRM;
   va_res = vaLockBuffer(va_display_, *buffer_name, buf_info);
   VA_SUCCESS_OR_RETURN(va_res, "Failed to lock vabuffer", false);
 
