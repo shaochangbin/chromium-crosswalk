@@ -162,12 +162,12 @@ bool VaapiVideoDecodeAccelerator::TFPPicture::Initialize() {
   DCHECK(CalledOnValidThread());
   if (!make_context_current_.Run())
     return false;
- /* 
+ 
   if (!va_wrapper_->CreateRGBImage(size_, &va_image_)) {
     LOG(INFO) << "Failed to create VAImage";
     return false;
   }
- */
+
   return true;
 }
 
@@ -262,15 +262,8 @@ bool VaapiVideoDecodeAccelerator::TFPPicture::Upload(VASurfaceID surface) {
 EGLImageKHR VaapiVideoDecodeAccelerator::TFPPicture::CreateEGLImage(
     EGLDisplay egl_display, VASurfaceID surface) {
   DCHECK(CalledOnValidThread());
-  //VAImage va_image;
-  //VABufferInfo buffer_info;
   uint32_t drm_format;
-  /*
-  if (va_wrapper_->CreateVAImage(surface, &va_image)) {
-    DVLOG(1) << "Failed to map VAImage";
-    return NULL;
-  }
-  */
+
   if (!va_wrapper_->LockBuffer(surface, &buffer_name_, &buffer_info_)) {
     LOG(INFO) << "Failed to Get Buffer Info";
     return NULL;
@@ -281,35 +274,28 @@ EGLImageKHR VaapiVideoDecodeAccelerator::TFPPicture::CreateEGLImage(
     return NULL;
   }
 
-  GLint attribs[23], *attrib;
-  attrib = attribs;
-  *attrib++ = EGL_LINUX_DRM_FOURCC_EXT;
-  *attrib++ = drm_format;
-  *attrib++ = EGL_WIDTH;
-  *attrib++ = va_image_.width;
-  *attrib++ = EGL_HEIGHT;
-  *attrib++ = va_image_.height;
   LOG(INFO) << "width:" << va_image_.width << ", height:" << va_image_.height
       << " handle:" << buffer_info_.handle << ", offset:" << va_image_.offsets[0]
       << " pitches:" << va_image_.pitches[0];
+  LOG(INFO) << "drm format: " << drm_format; 
+  LOG(INFO) << "va image planes:" << va_image_.num_planes;
 
-  LOG(INFO) << "  num_planes:" << va_image_.num_planes;
-  for (unsigned int i = 0; i < va_image_.num_planes; ++i) {
-    *attrib++ = EGL_DMA_BUF_PLANE0_FD_EXT + 3*i;
-    *attrib++ = buffer_info_.handle;
-    *attrib++ = EGL_DMA_BUF_PLANE0_OFFSET_EXT + 3*i;
-    *attrib++ = va_image_.offsets[i];
-    *attrib++ = EGL_DMA_BUF_PLANE0_PITCH_EXT + 3*i;
-    *attrib++ = va_image_.pitches[i];
-  }
-  *attrib++ = EGL_NONE;
-  for (int i=0; i< 23; ++i) {
-    LOG(INFO) << "GL Attr " << i << " : " << attribs[i];
-  }
+  EGLint attribs[] = {
+  EGL_WIDTH,                     0, EGL_HEIGHT,                    0,
+  EGL_LINUX_DRM_FOURCC_EXT,      0, EGL_DMA_BUF_PLANE0_FD_EXT,     0,
+  EGL_DMA_BUF_PLANE0_OFFSET_EXT, 0, EGL_DMA_BUF_PLANE0_PITCH_EXT,  0,
+  EGL_NONE, };
 
+  attribs[1] = va_image_.width;
+  attribs[3] = va_image_.height;
+  attribs[5] = drm_format;
+  attribs[7] = buffer_info_.handle;
+  attribs[9] = va_image_.offsets[0];
+  attribs[11] = va_image_.pitches[0];
+                                  
   EGLImageKHR egl_image = eglCreateImageKHR(
       egl_display, EGL_NO_CONTEXT,
-      EGL_LINUX_DMA_BUF_EXT, NULL, attribs);
+      EGL_LINUX_DRM_FOURCC_EXT, (EGLClientBuffer)NULL, attribs);
 
   return egl_image;
 }
