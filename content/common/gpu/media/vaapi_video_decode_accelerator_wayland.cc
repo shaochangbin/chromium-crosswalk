@@ -270,7 +270,8 @@ bool VaapiVideoDecodeAccelerator::TFPPicture::Upload(VASurfaceID surface) {
     return false;
   }
   
-  glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, egl_image_);
+  glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, egl_image_);
+  //glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, egl_image_);
   //CHECK_EQ(static_cast<GLenum>(GL_NO_ERROR), glGetError());
   LOG(INFO) << "@@@@@@@@@@@@@@@@@@@" << glGetError();
 

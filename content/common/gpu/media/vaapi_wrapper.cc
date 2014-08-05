@@ -423,9 +423,11 @@ bool VaapiWrapper::CreateRGBImage(gfx::Size size, VAImage* image) {
   VAStatus va_res;
   VAImageFormat format;
   format.fourcc = VA_FOURCC_RGBX;
+  //format.fourcc = VA_FOURCC_ARGB;
   format.byte_order = VA_LSB_FIRST;
   format.bits_per_pixel = 32;
-  format.depth = 24;
+  //format.depth = 24;
+  format.depth = 32;
   format.red_mask = 0xff; 
   format.green_mask = 0xff00;
   format.blue_mask = 0xff0000;
