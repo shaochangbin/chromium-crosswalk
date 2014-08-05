@@ -194,7 +194,7 @@ bool VaapiVideoDecodeAccelerator::TFPPicture::Bind() {
     return false;
 }
 */
-
+/*
 bool VaapiVideoDecodeAccelerator::TFPPicture::Upload(VASurfaceID surface) {
   DCHECK(CalledOnValidThread());
 
@@ -227,6 +227,7 @@ bool VaapiVideoDecodeAccelerator::TFPPicture::Upload(VASurfaceID surface) {
   }
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, size_.width(), size_.height(),
                0, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
+  LOG(INFO) << "-----------------" << glGetError();
   GLint w,h,format,type;
   glGetTexLevelParameteriv(GL_TEXTURE_2D,0, GL_TEXTURE_WIDTH,&w);
   glGetTexLevelParameteriv(GL_TEXTURE_2D,0, GL_TEXTURE_HEIGHT,&h);
@@ -239,8 +240,8 @@ bool VaapiVideoDecodeAccelerator::TFPPicture::Upload(VASurfaceID surface) {
 
   return true;
 }
+*/
 
-/*
 bool VaapiVideoDecodeAccelerator::TFPPicture::Upload(VASurfaceID surface) {
   DCHECK(CalledOnValidThread());
   LOG(INFO) << "--- " <<__FUNCTION__;
@@ -255,6 +256,13 @@ bool VaapiVideoDecodeAccelerator::TFPPicture::Upload(VASurfaceID surface) {
     return false;
   }
 
+  gfx::ScopedTextureBinder texture_binder(GL_TEXTURE_2D, texture_id_);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+  if(egl_image_ != EGL_NO_IMAGE_KHR)
+    DestroyEGLImage(gfx::GLSurfaceEGL::GetHardwareDisplay());
+  
   egl_image_ = 
       CreateEGLImage(gfx::GLSurfaceEGL::GetHardwareDisplay(), surface);
   if (egl_image_ == EGL_NO_IMAGE_KHR) {
@@ -262,8 +270,10 @@ bool VaapiVideoDecodeAccelerator::TFPPicture::Upload(VASurfaceID surface) {
     return false;
   }
   
-  gfx::ScopedTextureBinder texture_binder(GL_TEXTURE_2D, texture_id_);
   glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, egl_image_);
+  //CHECK_EQ(static_cast<GLenum>(GL_NO_ERROR), glGetError());
+  LOG(INFO) << "@@@@@@@@@@@@@@@@@@@" << glGetError();
+
   GLint w,h,format,type;
   glGetTexLevelParameteriv(GL_TEXTURE_2D,0, GL_TEXTURE_WIDTH,&w);
   glGetTexLevelParameteriv(GL_TEXTURE_2D,0, GL_TEXTURE_HEIGHT,&h);
@@ -272,15 +282,9 @@ bool VaapiVideoDecodeAccelerator::TFPPicture::Upload(VASurfaceID surface) {
 
   LOG(INFO) << "w: " << w << ", h:" << h << ", format:" << format << ", type:" << type;
 
-  if(egl_image_ != EGL_NO_IMAGE_KHR)
-    DestroyEGLImage(gfx::GLSurfaceEGL::GetHardwareDisplay());
-
-  if (va_wrapper_) {
-    va_wrapper_->UnlockBuffer(surface, &buffer_name_, &buffer_info_);
-  }
   return true;
 }
-*/
+
 
 EGLImageKHR VaapiVideoDecodeAccelerator::TFPPicture::CreateEGLImage(
     EGLDisplay egl_display, VASurfaceID surface) {
@@ -321,6 +325,7 @@ EGLImageKHR VaapiVideoDecodeAccelerator::TFPPicture::CreateEGLImage(
       EGL_DRM_BUFFER_MESA,
       (EGLClientBuffer) buffer_info_.handle,
       attribs);
+  LOG(INFO) << "++++++++" << glGetError();
 
   return egl_image;
 }
@@ -328,6 +333,9 @@ EGLImageKHR VaapiVideoDecodeAccelerator::TFPPicture::CreateEGLImage(
 bool VaapiVideoDecodeAccelerator::TFPPicture::DestroyEGLImage(
     EGLDisplay egl_display) {
   LOG(INFO) << "--- " <<__FUNCTION__;
+  if (va_wrapper_) {
+    va_wrapper_->UnlockBuffer(surface_id_, &buffer_name_, &buffer_info_);
+  }
   return eglDestroyImageKHR(egl_display, egl_image_);
 }
 
