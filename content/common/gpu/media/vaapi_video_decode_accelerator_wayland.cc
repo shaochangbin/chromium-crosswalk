@@ -16,6 +16,7 @@
 #include "ui/gl/gl_bindings.h"
 #include "ui/gl/gl_surface_egl.h"
 #include "ui/gl/scoped_binders.h"
+#include <stdio.h>
 
 static void ReportToUMA(
     content::VaapiH264Decoder::VAVDAH264DecoderFailure failure) {
@@ -212,6 +213,16 @@ bool VaapiVideoDecodeAccelerator::TFPPicture::Upload(VASurfaceID surface) {
     return false;
   }
 
+  FILE * pFile;
+  static int count = 0; 
+  if (count == 10 ) {
+    pFile = fopen ("/tmp/image.buf", "wb+");
+    LOG(INFO) << "-----size of buffer:" << sizeof(buffer);
+    fwrite (buffer, sizeof(char), va_image_.width* va_image_.height * 4, pFile);
+    fclose (pFile);
+  }
+  ++count;
+
   gfx::ScopedTextureBinder texture_binder(GL_TEXTURE_2D, texture_id_);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -256,6 +267,22 @@ bool VaapiVideoDecodeAccelerator::TFPPicture::Upload(VASurfaceID surface) {
     return false;
   }
 
+  void* buffer = NULL;
+  if (!va_wrapper_->MapImage(&va_image_, &buffer)) {
+    DVLOG(1) << "Failed to map VAImage";
+    return false;
+  }
+
+  FILE * pFile;
+  static int count = 0; 
+  if (count == 200 ) {
+    pFile = fopen ("/tmp/image.buf", "wb+");
+    LOG(INFO) << "-----size of buffer:" << sizeof(buffer);
+    fwrite (buffer, sizeof(char), va_image_.width* va_image_.height * 4, pFile);
+    fclose (pFile);
+  }
+  ++count;
+
   gfx::ScopedTextureBinder texture_binder(GL_TEXTURE_2D, texture_id_);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -285,7 +312,6 @@ bool VaapiVideoDecodeAccelerator::TFPPicture::Upload(VASurfaceID surface) {
 
   return true;
 }
-
 
 EGLImageKHR VaapiVideoDecodeAccelerator::TFPPicture::CreateEGLImage(
     EGLDisplay egl_display, VASurfaceID surface) {
