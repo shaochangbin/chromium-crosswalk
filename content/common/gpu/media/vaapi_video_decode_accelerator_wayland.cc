@@ -181,7 +181,7 @@ VaapiVideoDecodeAccelerator::TFPPicture::~TFPPicture() {
     DestroyEGLImage(gfx::GLSurfaceEGL::GetHardwareDisplay());
 
   if (va_wrapper_) {
-    va_wrapper_->UnlockBuffer(surface_id_, &buffer_name_, &buffer_info_);
+    va_wrapper_->UnlockBuffer(surface_id_, va_image_.buf, &buffer_info_);
     va_wrapper_->DestroyImage(&va_image_);
   }
    
@@ -266,7 +266,7 @@ bool VaapiVideoDecodeAccelerator::TFPPicture::Upload(VASurfaceID surface) {
     LOG(INFO) << "Failed to put va surface to vaimage";
     return false;
   }
-
+/*
   void* buffer = NULL;
   if (!va_wrapper_->MapImage(&va_image_, &buffer)) {
     DVLOG(1) << "Failed to map VAImage";
@@ -282,7 +282,7 @@ bool VaapiVideoDecodeAccelerator::TFPPicture::Upload(VASurfaceID surface) {
     fclose (pFile);
   }
   ++count;
-
+*/
   gfx::ScopedTextureBinder texture_binder(GL_TEXTURE_2D, texture_id_);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -318,7 +318,7 @@ EGLImageKHR VaapiVideoDecodeAccelerator::TFPPicture::CreateEGLImage(
   DCHECK(CalledOnValidThread());
   //uint32_t drm_format;
 
-  if (!va_wrapper_->LockBuffer(surface, &buffer_name_, &buffer_info_)) {
+  if (!va_wrapper_->LockBuffer(surface, va_image_.buf, &buffer_info_)) {
     LOG(INFO) << "Failed to lock Buffer";
     return NULL;
   }
@@ -361,7 +361,7 @@ bool VaapiVideoDecodeAccelerator::TFPPicture::DestroyEGLImage(
     EGLDisplay egl_display) {
   LOG(INFO) << "--- " <<__FUNCTION__;
   if (va_wrapper_) {
-    va_wrapper_->UnlockBuffer(surface_id_, &buffer_name_, &buffer_info_);
+    va_wrapper_->UnlockBuffer(surface_id_, va_image_.buf, &buffer_info_);
   }
   return eglDestroyImageKHR(egl_display, egl_image_);
 }

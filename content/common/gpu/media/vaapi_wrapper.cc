@@ -422,8 +422,8 @@ bool VaapiWrapper::CreateRGBImage(gfx::Size size, VAImage* image) {
   base::AutoLock auto_lock(va_lock_);
   VAStatus va_res;
   VAImageFormat format;
-  format.fourcc = VA_FOURCC_RGBX;
-  //format.fourcc = VA_FOURCC_ARGB;
+  //format.fourcc = VA_FOURCC_RGBX;
+  format.fourcc = VA_FOURCC_BGRX;
   format.byte_order = VA_LSB_FIRST;
   format.bits_per_pixel = 32;
   format.depth = 24;
@@ -488,15 +488,16 @@ bool VaapiWrapper::CreateVAImage(VASurfaceID va_surface_id,
   return true;
 }
 
-bool VaapiWrapper::LockBuffer(VASurfaceID va_surface_id, unsigned int* buffer_name, VABufferInfo* buf_info) {
+bool VaapiWrapper::LockBuffer(VASurfaceID va_surface_id, VABufferID buf_id, VABufferInfo* buf_info) {
   DCHECK(buf_info);
   base::AutoLock auto_lock(va_lock_);
 
-  unsigned int fourcc, luma_stride, chroma_u_stride, chroma_v_stride;
-  unsigned int luma_offset, chroma_u_offset, chroma_v_offset; //buffer_name;
-  void *buffer;
+  //unsigned int fourcc, luma_stride, chroma_u_stride, chroma_v_stride;
+  //unsigned int luma_offset, chroma_u_offset, chroma_v_offset; //buffer_name;
+  //void *buffer;
   VAStatus va_res;
   LOG(INFO) << __FUNCTION__ << ", begin to lock surface";
+  /*
   va_res = vaLockSurface(va_display_, va_surface_id, &fourcc,
       &luma_stride, &chroma_u_stride, &chroma_v_stride,
       &luma_offset, &chroma_u_offset, &chroma_v_offset,
@@ -506,9 +507,9 @@ bool VaapiWrapper::LockBuffer(VASurfaceID va_surface_id, unsigned int* buffer_na
   LOG(INFO) << __FUNCTION__ << " buffer name:" << *buffer_name;
   printf("surface info: luma_stride: %d, chroma_u_stride: %d, chromea_v_stride: %d \n",
            luma_stride, chroma_u_stride, chroma_v_stride);
-  
+  */
   buf_info->mem_type = VA_SURFACE_ATTRIB_MEM_TYPE_KERNEL_DRM;
-  va_res = vaLockBuffer(va_display_, *buffer_name, buf_info);
+  va_res = vaLockBuffer(va_display_, buf_id, buf_info);
   VA_SUCCESS_OR_RETURN(va_res, "Failed to lock vabuffer", false);
 
   printf("surface buffer info: buf_info.handle: 0x%x, buf_info.type: %d, buf_info.mem_type: 0x%x, buf_info.mem_size: %d\n",
@@ -517,16 +518,16 @@ bool VaapiWrapper::LockBuffer(VASurfaceID va_surface_id, unsigned int* buffer_na
   return true;
 }
 
-bool VaapiWrapper::UnlockBuffer(VASurfaceID va_surface_id, unsigned int* buffer_name, VABufferInfo* buf_info) {
+bool VaapiWrapper::UnlockBuffer(VASurfaceID va_surface_id, VABufferID buf_id, VABufferInfo* buf_info) {
   DCHECK(buf_info);
   base::AutoLock auto_lock(va_lock_);
   VAStatus va_res;
 
   LOG(INFO) << __FUNCTION__ << ", begin to unlock Buffer";
-  va_res = vaUnlockBuffer(va_display_, *buffer_name, buf_info);
+  va_res = vaUnlockBuffer(va_display_, buf_id, buf_info);
   VA_SUCCESS_OR_RETURN(va_res, "Failed to unlock vabuffer", false);
-  vaUnlockSurface(va_display_, va_surface_id);
-  VA_SUCCESS_OR_RETURN(va_res, "Failed to unlock vasurface", false);
+  //vaUnlockSurface(va_display_, va_surface_id);
+  //VA_SUCCESS_OR_RETURN(va_res, "Failed to unlock vasurface", false);
 
   return true;
 }
