@@ -81,12 +81,12 @@ class CONTENT_EXPORT VaapiWrapper {
   bool CreateRGBImage(gfx::Size size, VAImage* image);
   void DestroyImage(VAImage* image);
 
-  bool MapImage(VAImage* image, void** buffer);
-  void UnmapImage(VAImage* image);
-
   // Put data from |va_surface_id| into |va_image|, converting/scaling it.
   bool PutSurfaceIntoImage(VASurfaceID va_surface_id,
                            VAImage* va_image);
+
+  bool LockBuffer(VASurfaceID va_surface_id, VABufferID buf_id, VABufferInfo* buf_info);
+  bool UnlockBuffer(VASurfaceID va_surface_id, VABufferID buf_id, VABufferInfo* buf_info);
 #else
   // Put data from |va_surface_id| into |x_pixmap| of size |size|,
   // converting/scaling to it.

@@ -14,7 +14,10 @@
 #include "content/common/gpu/media/vaapi_video_decode_accelerator.h"
 #include "media/base/bind_to_current_loop.h"
 #include "media/video/picture.h"
+#include "ui/gl/gl_bindings.h"
+#include "ui/gl/gl_surface_egl.h"
 #include "ui/gl/scoped_binders.h"
+#include <stdio.h>
 
 static void ReportToUMA(
     content::VaapiH264Decoder::VAVDAH264DecoderFailure failure) {
@@ -29,7 +32,7 @@ namespace content {
 #define RETURN_AND_NOTIFY_ON_FAILURE(result, log, error_code, ret)  \
   do {                                                              \
     if (!(result)) {                                                \
-      DVLOG(1) << log;                                              \
+      LOG(INFO) << log;                                              \
       NotifyError(error_code);                                      \
       return ret;                                                   \
     }                                                               \
@@ -53,7 +56,7 @@ void VaapiVideoDecodeAccelerator::NotifyError(Error error) {
   message_loop_->PostTask(FROM_HERE, base::Bind(
       &VaapiVideoDecodeAccelerator::Cleanup, weak_this_));
 
-  DVLOG(1) << "Notifying of error " << error;
+  LOG(INFO) << "Notifying of error " << error;
   if (client_) {
     client_->NotifyError(error);
     client_ptr_factory_.reset();
@@ -87,8 +90,13 @@ class VaapiVideoDecodeAccelerator::TFPPicture : public base::NonThreadSafe {
     return size_;
   }
 
-  // Upload vaimage data to texture. Needs to be called every frame.
-  bool Upload(VASurfaceID id);
+  VAImage* va_image() {
+    return va_image_.get();
+  }
+
+  // Upload egl image to texture. Needs to be called every frame.
+  bool Bind();
+  bool UpdateEGLImage(VASurfaceID id);
 
  private:
   TFPPicture(const base::Callback<bool(void)>& make_context_current, //NOLINT
@@ -100,6 +108,10 @@ class VaapiVideoDecodeAccelerator::TFPPicture : public base::NonThreadSafe {
 
   bool Initialize();
 
+  EGLImageKHR CreateEGLImage(
+      EGLDisplay egl_display, VASurfaceID surface, VAImage* va_image);
+  bool DestroyEGLImage(EGLDisplay egl_display, EGLImageKHR egl_image);
+
   base::Callback<bool(void)> make_context_current_; //NOLINT
 
   wl_display* wl_display_;
@@ -110,7 +122,9 @@ class VaapiVideoDecodeAccelerator::TFPPicture : public base::NonThreadSafe {
   uint32 texture_id_;
 
   gfx::Size size_;
-  VAImage va_image_;
+  scoped_ptr<VAImage> va_image_;
+  EGLImageKHR egl_image_;
+  EGLDisplay egl_display_;
 
   DISALLOW_COPY_AND_ASSIGN(TFPPicture);
 };
@@ -127,8 +141,11 @@ VaapiVideoDecodeAccelerator::TFPPicture::TFPPicture(
       va_wrapper_(va_wrapper),
       picture_buffer_id_(picture_buffer_id),
       texture_id_(texture_id),
-      size_(size) {
+      size_(size),
+      va_image_(new VAImage()),
+      egl_display_(gfx::GLSurfaceEGL::GetHardwareDisplay()) {
   DCHECK(!make_context_current_.is_null());
+  DCHECK(va_image_);
 };
 
 linked_ptr<VaapiVideoDecodeAccelerator::TFPPicture>
@@ -154,8 +171,8 @@ bool VaapiVideoDecodeAccelerator::TFPPicture::Initialize() {
   if (!make_context_current_.Run())
     return false;
 
-  if (!va_wrapper_->CreateRGBImage(size_, &va_image_)) {
-    DVLOG(1) << "Failed to create VAImage";
+  if (!va_wrapper_->CreateRGBImage(size_, va_image_.get())) {
+    LOG(ERROR) << "Failed to create VAImage";
     return false;
   }
 
@@ -165,54 +182,98 @@ bool VaapiVideoDecodeAccelerator::TFPPicture::Initialize() {
 VaapiVideoDecodeAccelerator::TFPPicture::~TFPPicture() {
   DCHECK(CalledOnValidThread());
 
+  if(egl_image_ != EGL_NO_IMAGE_KHR)
+    DestroyEGLImage(egl_display_, egl_image_);
+
   if (va_wrapper_) {
-    va_wrapper_->DestroyImage(&va_image_);
+    va_wrapper_->DestroyImage(va_image_.get());
   }
+   
 }
 
-bool VaapiVideoDecodeAccelerator::TFPPicture::Upload(VASurfaceID surface) {
+bool VaapiVideoDecodeAccelerator::TFPPicture::UpdateEGLImage(VASurfaceID surface) {
   DCHECK(CalledOnValidThread());
-
   if (!make_context_current_.Run())
     return false;
 
-  if (!va_wrapper_->PutSurfaceIntoImage(surface, &va_image_)) {
-    DVLOG(1) << "Failed to put va surface to image";
+  if(egl_image_ != EGL_NO_IMAGE_KHR)
+    DestroyEGLImage(egl_display_, egl_image_);
+  
+  egl_image_ = CreateEGLImage(egl_display_, surface, va_image_.get());
+  if (egl_image_ == EGL_NO_IMAGE_KHR) {
+    LOG(ERROR) << "Failed to create EGL image";
     return false;
   }
 
-  void* buffer = NULL;
-  if (!va_wrapper_->MapImage(&va_image_, &buffer)) {
-    DVLOG(1) << "Failed to map VAImage";
-    return false;
-  }
+  return true;
+}
 
+bool VaapiVideoDecodeAccelerator::TFPPicture::Bind() {
+  DCHECK(CalledOnValidThread());
+  if (!make_context_current_.Run())
+    return false;
+
+  // TODO: Revisit and fix XWALK-1781. The screen displayed abnormally
+  // when playing some size of html5 mp4 videos on Tizen IVI.
   gfx::ScopedTextureBinder texture_binder(GL_TEXTURE_2D, texture_id_);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
-  unsigned int al = 4 * size_.width();
-  if (al != va_image_.pitches[0]) {
-    // Not aligned phenomenon occurs only in special size video in None-X11.
-    // So re-check RGBA data alignment and realign filled video frame in need.
-    unsigned char* bhandle = static_cast<unsigned char*>(buffer);
-    for (int i = 0; i < size_.height(); i++) {
-      memcpy(bhandle + (i * al), bhandle + (i * (va_image_.pitches[0])), al);
-    }
-  }
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, size_.width(), size_.height(),
-               0, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
-
-  va_wrapper_->UnmapImage(&va_image_);
+  glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, egl_image_);
+  LOG(INFO) << "@@@@@@@@@@@@@@@@@@@ " << glGetError();
 
   return true;
+}
+
+EGLImageKHR VaapiVideoDecodeAccelerator::TFPPicture::CreateEGLImage(
+    EGLDisplay egl_display, VASurfaceID va_surface, VAImage* va_image) {
+  DCHECK(CalledOnValidThread());
+  DCHECK(va_image);
+
+  VABufferInfo buffer_info;
+  if (!va_wrapper_->LockBuffer(va_surface, va_image->buf, &buffer_info)) {
+    LOG(ERROR) << "Failed to lock Buffer";
+    return NULL;
+  }
+
+  EGLint attribs[] = {
+      EGL_WIDTH, 0,
+      EGL_HEIGHT, 0,
+      EGL_DRM_BUFFER_STRIDE_MESA, 0,
+      EGL_DRM_BUFFER_FORMAT_MESA,
+      EGL_DRM_BUFFER_FORMAT_ARGB32_MESA,
+      EGL_DRM_BUFFER_USE_MESA,
+      EGL_DRM_BUFFER_USE_SHARE_MESA,
+      EGL_NONE };
+  attribs[1] = va_image->width;
+  attribs[3] = va_image->height;
+  attribs[5] = va_image->pitches[0] / 4;
+
+  EGLImageKHR egl_image =  eglCreateImageKHR(
+      egl_display,
+      EGL_NO_CONTEXT,
+      EGL_DRM_BUFFER_MESA,
+      (EGLClientBuffer) buffer_info.handle,
+      attribs);
+  LOG(INFO) << "@@@@@@@@@@@ " << glGetError();
+
+  if (va_wrapper_) {
+    va_wrapper_->UnlockBuffer(va_surface, va_image->buf, &buffer_info);
+  }
+  
+  return egl_image;
+}
+
+bool VaapiVideoDecodeAccelerator::TFPPicture::DestroyEGLImage(
+    EGLDisplay egl_display, EGLImageKHR egl_image) {
+  return eglDestroyImageKHR(egl_display, egl_image);
 }
 
 VaapiVideoDecodeAccelerator::TFPPicture*
     VaapiVideoDecodeAccelerator::TFPPictureById(int32 picture_buffer_id) {
   TFPPictures::iterator it = tfp_pictures_.find(picture_buffer_id);
   if (it == tfp_pictures_.end()) {
-    DVLOG(1) << "Picture id " << picture_buffer_id << " does not exist";
+    LOG(INFO) << "Picture id " << picture_buffer_id << " does not exist";
     return NULL;
   }
 
@@ -290,7 +351,6 @@ bool VaapiVideoDecodeAccelerator::Initialize(media::VideoCodecProfile profile,
 
   base::AutoLock auto_lock(lock_);
   DCHECK_EQ(state_, kUninitialized);
-  DVLOG(2) << "Initializing VAVDA, profile: " << profile;
 
   if (!make_context_current_.Run())
     return false;
@@ -311,7 +371,7 @@ bool VaapiVideoDecodeAccelerator::Initialize(media::VideoCodecProfile profile,
       base::Bind(&ReportToUMA, content::VaapiH264Decoder::VAAPI_ERROR));
 
   if (!vaapi_wrapper_.get()) {
-    DVLOG(1) << "Failed initializing VAAPI";
+    LOG(ERROR) << "Failed initializing VAAPI";
     return false;
   }
 
@@ -359,17 +419,32 @@ void VaapiVideoDecodeAccelerator::OutputPicture(
                "input_id", input_id,
                "output_id", output_id);
 
-  DVLOG(3) << "Outputting VASurface " << va_surface->id()
-           << " into pixmap bound to picture buffer id " << output_id;
+  LOG(INFO) << "Outputting VASurface " << va_surface->id()
+           << " into texture bound to picture buffer id " << output_id;
 
-  RETURN_AND_NOTIFY_ON_FAILURE(tfp_picture->Upload(va_surface->id()),
-                               "Failed to upload VASurface to texture",
-                               PLATFORM_FAILURE, ); //NOLINT
+  RETURN_AND_NOTIFY_ON_FAILURE(
+       vaapi_wrapper_->PutSurfaceIntoImage(
+            va_surface->id(),
+            tfp_picture->va_image()),
+       "Failed putting surface into vaimage",
+       PLATFORM_FAILURE, );  //NOLINT
+
+  RETURN_AND_NOTIFY_ON_FAILURE(
+      tfp_picture->UpdateEGLImage(
+          va_surface->id()),
+      "Failed to update egl image per vaimage info",
+      PLATFORM_FAILURE, );  //NOLINT
+
+
+  RETURN_AND_NOTIFY_ON_FAILURE(
+      tfp_picture->Bind(),
+      "Failed to bind egl image to texture",
+      PLATFORM_FAILURE, ); //NOLINT
 
   // Notify the client a picture is ready to be displayed.
   ++num_frames_at_client_;
   TRACE_COUNTER1("Video Decoder", "Textures at client", num_frames_at_client_);
-  DVLOG(4) << "Notifying output picture id " << output_id
+  LOG(INFO) << "Notifying output picture id " << output_id
            << " for input "<< input_id << " is ready";
   if (client_)
     client_->PictureReady(media::Picture(output_id, input_id));
@@ -622,7 +697,7 @@ void VaapiVideoDecodeAccelerator::TryFinishSurfaceSetChange() {
   tfp_pictures_.clear();
 
   // And ask for a new set as requested.
-  DVLOG(1) << "Requesting " << requested_num_pics_ << " pictures of size: "
+  LOG(INFO) << "Requesting " << requested_num_pics_ << " pictures of size: "
            << requested_pic_size_.ToString();
 
   message_loop_->PostTask(FROM_HERE, base::Bind(
@@ -740,7 +815,7 @@ void VaapiVideoDecodeAccelerator::ReusePictureBuffer(int32 picture_buffer_id) {
 
 void VaapiVideoDecodeAccelerator::FlushTask() {
   DCHECK(decoder_thread_proxy_->BelongsToCurrentThread());
-  DVLOG(1) << "Flush task";
+  LOG(INFO) << "Flush task";
 
   // First flush all the pictures that haven't been outputted, notifying the
   // client to output them.
@@ -817,7 +892,7 @@ void VaapiVideoDecodeAccelerator::ResetTask() {
 
 void VaapiVideoDecodeAccelerator::Reset() {
   DCHECK_EQ(message_loop_, base::MessageLoop::current());
-  DVLOG(1) << "Got reset request";
+  LOG(INFO) << "Got reset request";
 
   // This will make any new decode tasks exit early.
   base::AutoLock auto_lock(lock_);
@@ -881,7 +956,7 @@ void VaapiVideoDecodeAccelerator::FinishReset() {
       base::Unretained(this)));
   }
 
-  DVLOG(1) << "Reset finished";
+  LOG(INFO) << "Reset finished";
 }
 
 void VaapiVideoDecodeAccelerator::Cleanup() {

@@ -17,6 +17,7 @@
 
 #if defined (USE_OZONE)
 #include "third_party/libva/va/wayland/va_wayland.h"
+#include "third_party/libva/va/va_drmcommon.h"
 
 using content_common_gpu_media::kModuleVa_wayland;
 #else
@@ -384,14 +385,15 @@ bool VaapiWrapper::CreateRGBImage(gfx::Size size, VAImage* image) {
   base::AutoLock auto_lock(va_lock_);
   VAStatus va_res;
   VAImageFormat format;
-  format.fourcc = VA_FOURCC_RGBX;
+  format.fourcc = VA_FOURCC_BGRX;
   format.byte_order = VA_LSB_FIRST;
   format.bits_per_pixel = 32;
   format.depth = 24;
-  format.red_mask = 0xff;
-  format.green_mask = 0xff00;
+  format.red_mask = 0x0000ff;
+  format.green_mask = 0x00ff00;
   format.blue_mask = 0xff0000;
   format.alpha_mask = 0;
+
   va_res = vaCreateImage(va_display_,
                          &format,
                          size.width(),
@@ -404,19 +406,6 @@ bool VaapiWrapper::CreateRGBImage(gfx::Size size, VAImage* image) {
 void VaapiWrapper::DestroyImage(VAImage* image) {
   base::AutoLock auto_lock(va_lock_);
   vaDestroyImage(va_display_, image->image_id);
-}
-
-bool VaapiWrapper::MapImage(VAImage* image, void** buffer) {
-  base::AutoLock auto_lock(va_lock_);
-
-  VAStatus va_res = vaMapBuffer(va_display_, image->buf, buffer);
-  VA_SUCCESS_OR_RETURN(va_res, "Failed to map image", false);
-  return true;
-}
-
-void VaapiWrapper::UnmapImage(VAImage* image) {
-  base::AutoLock auto_lock(va_lock_);
-  vaUnmapBuffer(va_display_, image->buf);
 }
 
 bool VaapiWrapper::PutSurfaceIntoImage(VASurfaceID va_surface_id,
@@ -434,7 +423,29 @@ bool VaapiWrapper::PutSurfaceIntoImage(VASurfaceID va_surface_id,
                       image->image_id);
   VA_SUCCESS_OR_RETURN(va_res, "Failed to put surface into image", false);
   return true;
+
 }
+
+bool VaapiWrapper::LockBuffer(VASurfaceID va_surface_id, VABufferID buf_id, VABufferInfo* buf_info) {
+  DCHECK(buf_info);
+  base::AutoLock auto_lock(va_lock_);
+
+  buf_info->mem_type = VA_SURFACE_ATTRIB_MEM_TYPE_KERNEL_DRM;
+  VAStatus va_res = vaLockBuffer(va_display_, buf_id, buf_info);
+  VA_SUCCESS_OR_RETURN(va_res, "Failed to lock vabuffer", false);
+
+  return true;
+}
+
+bool VaapiWrapper::UnlockBuffer(VASurfaceID va_surface_id, VABufferID buf_id, VABufferInfo* buf_info) {
+  DCHECK(buf_info);
+  base::AutoLock auto_lock(va_lock_);
+  VAStatus va_res = vaUnlockBuffer(va_display_, buf_id, buf_info);
+  VA_SUCCESS_OR_RETURN(va_res, "Failed to unlock vabuffer", false);
+
+  return true;
+}
+
 #else
 bool VaapiWrapper::PutSurfaceIntoPixmap(VASurfaceID va_surface_id,
                                         Pixmap x_pixmap,
