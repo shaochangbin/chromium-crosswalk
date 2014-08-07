@@ -68,9 +68,11 @@ struct drm_state {
     int         auth_type;
 };
 
-/** \brief Kernel DRM buffer memory type.  */
+/** \brief Kernel DRM buffer memory type.  the handle is global buffer name(across processes)*/
 #define VA_SURFACE_ATTRIB_MEM_TYPE_KERNEL_DRM		0x10000000
 /** \brief DRM PRIME memory type. */
 #define VA_SURFACE_ATTRIB_MEM_TYPE_DRM_PRIME		0x20000000
+/** \brief DRM buffer object memory type. the handle is per-process buffer object*/
+#define VA_SURFACE_ATTRIB_MEM_TYPE_KERNEL_DRM_BO   	0x40000000
 
 #endif /* VA_DRM_COMMON_H */
