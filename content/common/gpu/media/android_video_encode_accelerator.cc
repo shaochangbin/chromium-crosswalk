@@ -93,14 +93,24 @@ AndroidVideoEncodeAccelerator::GetSupportedProfiles() {
 
   for (size_t i = 0; i < codecs_info.size(); ++i) {
     const MediaCodecBridge::CodecsInfo& info = codecs_info[i];
+    /*
     if (info.direction != media::MEDIA_CODEC_ENCODER || info.codecs != "vp8" ||
         VideoCodecBridge::IsKnownUnaccelerated(media::kCodecVP8,
                                                media::MEDIA_CODEC_ENCODER)) {
       // We're only looking for a HW VP8 encoder.
       continue;
     }
+    */
+    if (info.direction != media::MEDIA_CODEC_ENCODER || info.codecs != "avc1" ||
+        VideoCodecBridge::IsKnownUnaccelerated(media::kCodecH264,
+                                               media::MEDIA_CODEC_ENCODER)) {
+      // We're only looking for a HW H264 encoder.
+      continue;
+    }
+
     SupportedProfile profile;
-    profile.profile = media::VP8PROFILE_MAIN;
+    //profile.profile = media::VP8PROFILE_MAIN;
+    profile.profile = media::H264PROFILE_BASELINE;
     // Wouldn't it be nice if MediaCodec exposed the maximum capabilities of the
     // encoder?  Sure would be.  Too bad it doesn't.  So we hard-code some
     // reasonable defaults.
@@ -129,7 +139,8 @@ bool AndroidVideoEncodeAccelerator::Initialize(
 
   if (!(media::MediaCodecBridge::SupportsSetParameters() &&
         format == VideoFrame::I420 &&
-        output_profile == media::VP8PROFILE_MAIN)) {
+        //output_profile == media::VP8PROFILE_MAIN)) {
+        output_profile == media::H264PROFILE_BASELINE)) {
     DLOG(ERROR) << "Unexpected combo: " << format << ", " << output_profile;
     return false;
   }
@@ -138,7 +149,8 @@ bool AndroidVideoEncodeAccelerator::Initialize(
 
   // Only consider using MediaCodec if it's likely backed by hardware.
   if (media::VideoCodecBridge::IsKnownUnaccelerated(
-          media::kCodecVP8, media::MEDIA_CODEC_ENCODER)) {
+          //media::kCodecVP8, media::MEDIA_CODEC_ENCODER)) {
+          media::kCodecH264, media::MEDIA_CODEC_ENCODER)) {
     DLOG(ERROR) << "No HW support";
     return false;
   }
@@ -148,7 +160,8 @@ bool AndroidVideoEncodeAccelerator::Initialize(
   // formats.  For now we use the only format supported by the only available
   // HW.
   media_codec_.reset(
-      media::VideoCodecBridge::CreateEncoder(media::kCodecVP8,
+      //media::VideoCodecBridge::CreateEncoder(media::kCodecVP8,
+      media::VideoCodecBridge::CreateEncoder(media::kCodecH264,
                                              input_visible_size,
                                              initial_bitrate,
                                              INITIAL_FRAMERATE,

@@ -88,7 +88,7 @@ bool AndroidVideoDecodeAccelerator::Initialize(media::VideoCodecProfile profile,
   DCHECK(thread_checker_.CalledOnValidThread());
 
   client_ = client;
-
+/*
   if (profile == media::VP8PROFILE_MAIN) {
     codec_ = media::kCodecVP8;
   } else {
@@ -96,6 +96,15 @@ bool AndroidVideoDecodeAccelerator::Initialize(media::VideoCodecProfile profile,
     LOG(ERROR) << "Unsupported profile: " << profile;
     return false;
   }
+*/
+  if (profile == media::H264PROFILE_BASELINE || 
+      profile == media::H264PROFILE_MAIN || 
+      profile == media::H264PROFILE_HIGH) {
+     codec_ = media::kCodecH264;
+   } else {
+    LOG(ERROR) << "Unsupported profile: " << profile;
+    return false;
+   }
 
   // Only consider using MediaCodec if it's likely backed by hardware.
   if (media::VideoCodecBridge::IsKnownUnaccelerated(
