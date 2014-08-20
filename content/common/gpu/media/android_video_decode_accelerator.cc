@@ -84,6 +84,8 @@ AndroidVideoDecodeAccelerator::~AndroidVideoDecodeAccelerator() {
 
 bool AndroidVideoDecodeAccelerator::Initialize(media::VideoCodecProfile profile,
                                                Client* client) {
+  LOG(INFO) << "+++++ AndroidVideoDecodeAccelerator::Initialize +++++";
+  LOG(ERROR) << "+++++ AndroidVideoDecodeAccelerator::Initialize +++++";
   DCHECK(!media_codec_);
   DCHECK(thread_checker_.CalledOnValidThread());
 

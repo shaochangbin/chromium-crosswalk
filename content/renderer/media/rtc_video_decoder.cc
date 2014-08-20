@@ -120,6 +120,9 @@ scoped_ptr<RTCVideoDecoder> RTCVideoDecoder::Create(
     case webrtc::kVideoCodecVP8:
       profile = media::VP8PROFILE_MAIN;
       break;
+    case webrtc::kVideoCodecH264:
+      profile = media::H264PROFILE_BASELINE;
+      break;
     default:
       DVLOG(2) << "Video codec not supported:" << type;
       return decoder.Pass();
