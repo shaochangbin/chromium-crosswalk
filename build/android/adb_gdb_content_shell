@@ -9,8 +9,8 @@
 #
 PROGDIR=$(dirname "$0")
 export ADB_GDB_PROGNAME=$(basename "$0")
-export ADB_GDB_ACTIVITY=.ContentShellActivity
+export ADB_GDB_ACTIVITY=.XWalkViewShellActivity
 "$PROGDIR"/adb_gdb \
-    --program-name=ContentShell \
-    --package-name=org.chromium.content_shell_apk \
+    --program-name=XWalkCoreShell \
+    --package-name=org.xwalk.core.xwview.shell \
     "$@"
